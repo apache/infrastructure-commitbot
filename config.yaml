@@ -6,7 +6,7 @@ server:
 client:
   nick: CommitBot
   realname: ASF Commit Bot
-  password: pwd.txt
+  password: /var/www/commitbot.txt
 
 pubsub_host: http://pubsub.apache.org:2069/commit
 
