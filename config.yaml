@@ -17,6 +17,7 @@ channels:
       - git:*
   "#httpd-dev":
       tags:
+        - git:httpd*
         - svn:httpd/*
         - svn:release/httpd/*
         - svn:dev/httpd/*
