@@ -53,7 +53,7 @@ def format_message(payload):
     if not commit:  # Probably a still-alive ping, ignore
         return "", ""
     commit_type = commit.get("repository")
-    commit_root, commit_files = files_touched(commit.get("files"))
+    commit_root, commit_files = files_touched(commit.get("files") or commit.get("changed", {}))
     if commit_type == "git":
         commit_subject = commit.get("subject")
         author = commit.get("email", "unknown@apache.org")
