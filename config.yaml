@@ -20,3 +20,8 @@ channels:
         - svn:httpd/*
         - svn:release/httpd/*
         - svn:dev/httpd/*
+  "#svn-dev":
+      tags:
+        - svn:subversion/*
+        - svn:release/subversion/*
+        - svn:dev/subversion/*
