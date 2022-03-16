@@ -1,0 +1,13 @@
+[Unit]
+Description=ASF IRC Commit Bot
+ 
+[Service]
+Type=simple
+WorkingDirectory=/opt/commitbot
+ExecStart=/usr/local/bin/pipenv run python3 commitbot.py
+Restart=always
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
