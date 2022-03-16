@@ -25,3 +25,8 @@ channels:
         - svn:subversion/*
         - svn:release/subversion/*
         - svn:dev/subversion/*
+  "#couchdb-dev":
+      tags:
+        - git:couchdb*
+        - svn:release/couchdb/*
+        - svn:dev/couchdb/*
