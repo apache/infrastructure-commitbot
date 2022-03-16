@@ -1,0 +1,22 @@
+server:
+  host: irc.libera.chat
+  port: 6697
+  ssl: true
+
+client:
+  nick: CommitBot
+  realname: ASF Commit Bot
+  password: pwd.txt
+
+pubsub_host: http://pubsub.apache.org:2069/commit
+
+channels:
+  "#asfbot":
+    tags:  # Uses fnmatch syntax. e.g.: svn:httpd/*, or git:couchdb*
+      - svn:*
+      - git:*
+  "#httpd-dev":
+      tags:
+        - svn:httpd/*
+        - svn:release/httpd/*
+        - svn:dev/httpd/*
