@@ -63,7 +63,7 @@ def format_message(payload):
         url = f"https://gitbox.apache.org/repos/asf?p={commit_repo}.git;h={sha}"
         return f"git:{commit_repo}", f"\x033 {author}\x03 \x02{tag} * {sha}\x0f ({commit_files}) {url}: {commit_subject}"
     else:  # if not git, then svn
-        author = commit.get("author", "unknown") + "@apache.org"
+        author = commit.get("committer", "unknown") + "@apache.org"
         commit_subject = commit.get("log", "No log provided").split("\n")[0]
         revision = commit.get("id", "1")
         url = f"https://svn.apache.org/r{revision}"
