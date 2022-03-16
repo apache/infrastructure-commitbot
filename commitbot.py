@@ -26,7 +26,7 @@ import os
 def files_touched(files):
     """Finds the root path of files touched by this commit, as well as returns a short summary of what was touched"""
     if isinstance(files, dict):  # svn returns a dict, we only care about the filenames, so convert to list
-        files = files.keys()
+        files = list(files.keys())
     if not files:  # No files touched, likely a branch or tag was created/deleted
         return "", "No files touched"
     if len(files) == 1:  # Just one file, return that
