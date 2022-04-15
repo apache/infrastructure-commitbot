@@ -22,7 +22,7 @@ import json
 import fnmatch
 import os
 
-MAX_LOG_LEN = 100
+MAX_LOG_LEN = 200
 
 def files_touched(files):
     """Finds the root path of files touched by this commit, as well as returns a short summary of what was touched"""
