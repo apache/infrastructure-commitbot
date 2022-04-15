@@ -22,6 +22,7 @@ import json
 import fnmatch
 import os
 
+MAX_LOG_LEN = 100
 
 def files_touched(files):
     """Finds the root path of files touched by this commit, as well as returns a short summary of what was touched"""
@@ -64,7 +65,10 @@ def format_message(payload):
         return f"git:{commit_repo}", f"\x033 {author}\x03 \x02{tag} * {sha}\x0f ({commit_files}) {url}: {commit_subject}"
     else:  # if not git, then svn
         author = commit.get("committer", "unknown") + "@apache.org"
-        commit_subject = commit.get("log", "No log provided").split("\n")[0]
+        commit_subject = commit.get("log", "No log provided")
+        commit_subject = " ".join(commit_subject.split("\n"))
+        if len(commit_subject) > MAX_LOG_LEN:
+            commit_subject = commit_subject[:MAX_LOG_LEN-3] + "..."
         revision = commit.get("id", "1")
         url = f"https://svn.apache.org/r{revision}"
         return f"svn:{commit_root}", f"\x033 {author}\x03 \x02r{revision}\x0f ({commit_files}) {url}: {commit_subject}"
