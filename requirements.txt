@@ -2,3 +2,4 @@ asyncio
 aiohttp
 bottom
 pyyaml
+asfpy
