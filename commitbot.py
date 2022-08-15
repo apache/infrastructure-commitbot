@@ -103,32 +103,18 @@ def main():
             bot.send("JOIN", channel=channel)
 
         # Set up pubsub
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(sock_read=15)) as client:
-            while True:
-                try:
-                    async with client.get(config["pubsub_host"]) as resp:
-                        print("Connected to " + config["pubsub_host"])
-                        async for chunk in resp.content.iter_chunked(256 * 1024):
-                            try:
-                                js = json.loads(chunk)
-                            except json.decoder.JSONDecodeError:  # Bad JSON??
-                                continue
-                            root, msg = format_message(js)
-                            if msg:
-                                sent = False
-                                for channel, data in config["channels"].items():
-                                    for tag in data.get("tags", []):
-                                        if fnmatch.fnmatch(root, tag):
-                                            bot.send("privmsg", target=channel, message=msg)
-                                            sent = True
-                                            break
-                                if sent:
-                                    await asyncio.sleep(1)  # Don't flood too quickly
-
-                except aiohttp.client_exceptions.ServerTimeoutError:
-                    print("PubSub died, reconnecting in 5 seconds")
-                    await asyncio.sleep(5)
-                    continue
+        async for payload in asfpy.pubsub.listen(config["pubsub_host"]):
+            root, msg = format_message(payload)
+            if msg:
+                sent = False
+                for channel, data in config["channels"].items():
+                    for tag in data.get("tags", []):
+                        if fnmatch.fnmatch(root, tag):
+                            bot.send("privmsg", target=channel, message=msg)
+                            sent = True
+                            break
+                if sent:
+                    await asyncio.sleep(1)  # Don't flood too quickly
 
     @bot.on("PING")
     def keepalive(message, **kwargs):
