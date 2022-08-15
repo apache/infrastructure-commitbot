@@ -21,7 +21,7 @@ import yaml
 import json
 import fnmatch
 import os
-import asfpy
+import asfpy.pubsub
 
 MAX_LOG_LEN = 200
 
