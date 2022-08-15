@@ -21,6 +21,7 @@ import yaml
 import json
 import fnmatch
 import os
+import asfpy
 
 MAX_LOG_LEN = 200
 
