@@ -1,5 +1,5 @@
 asyncio
 aiohttp
-bottom
+irc
 pyyaml
 asfpy
