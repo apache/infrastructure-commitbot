@@ -15,15 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
-import bottom
-import aiohttp
 import yaml
-import json
 import fnmatch
 import os
+import sys
 import asfpy.pubsub
+import irc.client
+import irc.client_aio
+
 
 MAX_LOG_LEN = 200
+
 
 def files_touched(files):
     """Finds the root path of files touched by this commit, as well as returns a short summary of what was touched"""
@@ -63,66 +65,75 @@ def format_message(payload):
         tag = commit.get("ref", "main").replace("refs/heads/", "").replace("refs/tags/", "")  # Strip refs/*/ away
         sha = commit.get("hash", "0000000")
         url = f"https://gitbox.apache.org/repos/asf?p={commit_repo}.git;h={sha}"
-        return f"git:{commit_repo}", f"\x033 {author}\x03 \x02{tag} * {sha}\x0f ({commit_files}) {url}: {commit_subject}"
+        return (
+            f"git:{commit_repo}",
+            f"\x033 {author}\x03 \x02{tag} * {sha}\x0f ({commit_files}) {url}: {commit_subject}",
+        )
     else:  # if not git, then svn
         author = commit.get("committer", "unknown") + "@apache.org"
         commit_subject = commit.get("log", "No log provided")
         commit_subject = " ".join(commit_subject.split("\n"))
         if len(commit_subject) > MAX_LOG_LEN:
-            commit_subject = commit_subject[:MAX_LOG_LEN-3] + "..."
+            commit_subject = commit_subject[: MAX_LOG_LEN - 3] + "..."
         revision = commit.get("id", "1")
         url = f"https://svn.apache.org/r{revision}"
         return f"svn:{commit_root}", f"\x033 {author}\x03 \x02r{revision}\x0f ({commit_files}) {url}: {commit_subject}"
 
 
-def main():
-    print("Starting CommitBot")
-    config = yaml.safe_load(open("config.yaml"))
-    password = open(config["client"]["password"]).read().strip()
-    bot = bottom.Client(
-        host=config["server"]["host"], port=config["server"]["port"], ssl=config["server"].get("ssl", False)
-    )
+class CommitbotClient(irc.client_aio.AioSimpleIRCClient):
+    def __init__(self, config: dict):
+        irc.client.SimpleIRCClient.__init__(self)
+        self.config = config
+        self.future = None
 
-    @bot.on("CLIENT_CONNECT")
-    async def connect(**kwargs):
-        bot.send("NICK", nick=config["client"]["nick"])
-        bot.send("USER", user=config["client"]["nick"], realname=config["client"]["realname"])
-
-        done, pending = await asyncio.wait(
-            (
-                asyncio.create_task(bot.wait("RPL_ENDOFMOTD")),
-                asyncio.create_task(bot.wait("ERR_NOMOTD")),
-            ),
-            return_when=asyncio.FIRST_COMPLETED,
+    def run(self):
+        password = open(self.config["client"]["password"]).read().strip()
+        self.connect(
+            self.config["server"]["host"],
+            self.config["server"]["port"],
+            self.config["client"]["nick"],
+            ircname=self.config["client"]["realname"],
+            password=password,
         )
-        for future in pending:  # Cancel whichever MOTD action never happened
-            future.cancel()
+        try:
+            self.start()
+        finally:
+            self.connection.disconnect()
+            self.reactor.loop.close()
 
-        bot.send("PRIVMSG", target="NickServ", message=f"IDENTIFY {password}")
-        await asyncio.sleep(10)
-        for channel in config["channels"]:
-            bot.send("JOIN", channel=channel)
+    def on_welcome(self, connection, event):
+        for channel in self.config["channels"]:
+            self.connection.join(channel)
+            print(f"Joined {channel}")
 
-        # Set up pubsub
-        async for payload in asfpy.pubsub.listen(config["pubsub_host"]):
+        self.future = asyncio.ensure_future(self.pubsub_poll(), loop=connection.reactor.loop)
+
+    def on_disconnect(self, connection, event):
+        if self.future:
+            self.future.cancel()
+        sys.exit(0)
+
+    async def pubsub_poll(self):
+        async for payload in asfpy.pubsub.listen(self.config["pubsub_host"]):
             root, msg = format_message(payload)
             if msg:
                 sent = False
-                for channel, data in config["channels"].items():
+                for channel, data in self.config["channels"].items():
                     for tag in data.get("tags", []):
                         if fnmatch.fnmatch(root, tag):
-                            bot.send("privmsg", target=channel, message=msg)
+                            self.connection.privmsg(channel, msg)
                             sent = True
                             break
                 if sent:
                     await asyncio.sleep(1)  # Don't flood too quickly
+        self.connection.quit("Bye!")
 
-    @bot.on("PING")
-    def keepalive(message, **kwargs):
-        bot.send("PONG", message=message)
 
-    bot.loop.create_task(bot.connect())
-    bot.loop.run_forever()
+def main():
+    print("Starting CommitBot")
+    config = yaml.safe_load(open("config.yaml"))
+    bot = CommitbotClient(config)
+    bot.run()
 
 
 if __name__ == "__main__":
