@@ -1,6 +1,6 @@
 server:
   host: irc.libera.chat
-  port: 6697
+  port: 6667
   ssl: true
 
 client:
