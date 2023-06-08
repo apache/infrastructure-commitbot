@@ -22,7 +22,7 @@ import sys
 import asfpy.pubsub
 import irc.client
 import irc.client_aio
-
+import base64
 
 MAX_LOG_LEN = 200
 
@@ -80,20 +80,62 @@ def format_message(payload):
         return f"svn:{commit_root}", f"\x033 {author}\x03 \x02r{revision}\x0f ({commit_files}) {url}: {commit_subject}"
 
 
-class CommitbotClient(irc.client_aio.AioSimpleIRCClient):
+class SASLMixin(irc.client_aio.AioSimpleIRCClient):
+    """Mixin for the IRC client, adding simple SASL capabilities"""
+
+    def __init__(self):
+        super(irc.client_aio.AioSimpleIRCClient, self).__init__()
+        self.reactor._on_connect = self._on_connect
+        for event in ["cap", "authenticate", "903", "908"]:
+            self.connection.add_global_handler(event, getattr(self, f"_on_{event}"))
+
+    def _on_connect(self, sock, event):
+        """Send CAP REQ :sasl on connect."""
+        self.connection.cap("REQ", "sasl")
+
+    def _on_cap(self, conn, event):
+        """Handle CAP responses."""
+        if event.arguments and event.arguments[0] == "ACK":
+            conn.send_raw("AUTHENTICATE PLAIN")
+        else:
+            print("Unexpected CAP response: %s", event)
+            conn.disconnect()
+
+    def _on_authenticate(self, conn, event):
+        """Handle AUTHENTICATE responses."""
+        if event.target == "+":
+            creds = "{username}\0{username}\0{password}".format(
+                username=self.config["client"]["nick"], password=self.password
+            )
+            conn.send_raw("AUTHENTICATE {}".format(base64.b64encode(creds.encode("utf8")).decode("utf8")))
+        else:
+            print("Unexpcted AUTHENTICATE response: %s", event)
+            conn.disconnect()
+
+    def _on_903(self, conn, event):
+        """903: RPL_SASLSUCCESS"""
+        self.connection.cap("END")
+
+    def _on_908(self, conn, event):
+        """908: RPL_SASLMECHS (PLAIN SASL not supported)"""
+        print("SASL PLAIN not supported: %s", event)
+        self.die()
+
+
+class CommitbotClient(SASLMixin):
     def __init__(self, config: dict):
-        irc.client.SimpleIRCClient.__init__(self)
+        super(CommitbotClient, self).__init__()
         self.config = config
         self.future = None
+        self.password = None
 
     def run(self):
-        password = open(self.config["client"]["password"]).read().strip()
+        self.password = open(self.config["client"]["password"]).read().strip()
         self.connect(
             self.config["server"]["host"],
             self.config["server"]["port"],
             self.config["client"]["nick"],
             ircname=self.config["client"]["realname"],
-            password=password,
         )
         try:
             self.start()
