@@ -2,4 +2,4 @@ asyncio
 aiohttp
 irc
 pyyaml
-asfpy
+asfpy~=0.49
