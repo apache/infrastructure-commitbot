@@ -159,19 +159,18 @@ class CommitbotClient(SASLMixin):
         
     async def pubsub_poll(self):
         while True:
-            try:
-                async for payload in asfpy.pubsub.listen(self.config["pubsub_host"]):
-                    root, msg = format_message(payload)
-                    if msg:
-                        to_channels = []
-                        for channel, data in self.config["channels"].items():
-                            for tag in data.get("tags", []):
-                                if fnmatch.fnmatch(root, tag):
-                                    to_channels.append(channel)
-                                    break
-                        if to_channels:
-                            self.connection.privmsg_many(to_channels, msg)
-                            await asyncio.sleep(1)  # Don't flood too quickly
+            async for payload in asfpy.pubsub.listen(self.config["pubsub_host"]):
+                root, msg = format_message(payload)
+                if msg:
+                    to_channels = []
+                    for channel, data in self.config["channels"].items():
+                        for tag in data.get("tags", []):
+                            if fnmatch.fnmatch(root, tag):
+                                to_channels.append(channel)
+                                break
+                    if to_channels:
+                        self.connection.privmsg_many(to_channels, msg)
+                        await asyncio.sleep(1)  # Don't flood too quickly
         self.connection.quit("Bye!")
 
 
