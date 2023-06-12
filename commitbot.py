@@ -25,6 +25,7 @@ import irc.client_aio
 import base64
 
 MAX_LOG_LEN = 200
+INTERNAL_TIMEOUT = 30  # Internal 30 second timeout for monitoring the pubsub loop.
 
 
 def files_touched(files):
@@ -155,19 +156,26 @@ class CommitbotClient(SASLMixin):
             self.future.cancel()
         sys.exit(0)
 
+        
     async def pubsub_poll(self):
-        async for payload in asfpy.pubsub.listen(self.config["pubsub_host"]):
-            root, msg = format_message(payload)
-            if msg:
-                sent = False
-                for channel, data in self.config["channels"].items():
-                    for tag in data.get("tags", []):
-                        if fnmatch.fnmatch(root, tag):
-                            self.connection.privmsg(channel, msg)
-                            sent = True
-                            break
-                if sent:
-                    await asyncio.sleep(1)  # Don't flood too quickly
+        while True:
+            try:
+                async with asyncio.timeout(INTERNAL_TIMEOUT) as dl:
+                    async for payload in asfpy.pubsub.listen(self.config["pubsub_host"]):
+                        root, msg = format_message(payload)
+                        dl.reschedule(dl.when() + INTERNAL_TIMEOUT)  # Reset timeout
+                        if msg:
+                            sent = False
+                            for channel, data in self.config["channels"].items():
+                                for tag in data.get("tags", []):
+                                    if fnmatch.fnmatch(root, tag):
+                                        self.connection.privmsg(channel, msg)
+                                        sent = True
+                                        break
+                            if sent:
+                                await asyncio.sleep(1)  # Don't flood too quickly
+            except asyncio.TimeoutError:
+                self.connection.privmsg("#asfbot", "Pubsub timed out, reconnecting")
         self.connection.quit("Bye!")
 
 
