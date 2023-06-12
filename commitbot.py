@@ -160,22 +160,18 @@ class CommitbotClient(SASLMixin):
     async def pubsub_poll(self):
         while True:
             try:
-                async with asyncio.timeout(INTERNAL_TIMEOUT) as dl:
-                    async for payload in asfpy.pubsub.listen(self.config["pubsub_host"]):
-                        root, msg = format_message(payload)
-                        dl.reschedule(dl.when() + INTERNAL_TIMEOUT)  # Reset timeout
-                        if msg:
-                            sent = False
-                            for channel, data in self.config["channels"].items():
-                                for tag in data.get("tags", []):
-                                    if fnmatch.fnmatch(root, tag):
-                                        self.connection.privmsg(channel, msg)
-                                        sent = True
-                                        break
-                            if sent:
-                                await asyncio.sleep(1)  # Don't flood too quickly
-            except asyncio.TimeoutError:
-                self.connection.privmsg("#asfbot", "Pubsub timed out, reconnecting")
+                async for payload in asfpy.pubsub.listen(self.config["pubsub_host"]):
+                    root, msg = format_message(payload)
+                    if msg:
+                        to_channels = []
+                        for channel, data in self.config["channels"].items():
+                            for tag in data.get("tags", []):
+                                if fnmatch.fnmatch(root, tag):
+                                    to_channels.append(channel)
+                                    break
+                        if to_channels:
+                            self.connection.privmsg_many(to_channels, msg)
+                            await asyncio.sleep(1)  # Don't flood too quickly
         self.connection.quit("Bye!")
 
 
